@@ -30,9 +30,9 @@
 *  for over-temperature protection at 65 °C.
 *================================================================================================*/
 const uint16_t ntc_adc_table[] PROGMEM = {
-    786, 736, 683, 626, 569, 512, 457, 405, 357, 313,  //  0..45 °C
-    273, 238, 207, 180, 156, 136, 118, 103,  90,  79,  // 50..95 °C
-     69                                                // 100 °C
+        786, 736, 683, 626, 569, 512, 457, 405, 357, 313, //  0..45 °C
+        273, 238, 207, 180, 156, 136, 118, 103, 90,  79,  // 50..95 °C
+        69                                                // 100 °C
 };
 static constexpr uint8_t NTC_TABLE_SIZE = sizeof(ntc_adc_table) / sizeof(ntc_adc_table[0]);
 
@@ -45,15 +45,18 @@ static constexpr uint8_t NTC_TABLE_SIZE = sizeof(ntc_adc_table) / sizeof(ntc_adc
 *  v4.0.x left the clock at 800 kHz forever after the first pulse, which made OLED redraws
 *  electrically noisier. v4.1 restores the normal clock after the critical section.
 *================================================================================================*/
-void setI2CClock(uint32_t hz) {
+void setI2CClock(uint32_t hz)
+{
     Wire.setClock(hz);
 }
 
-void enterCriticalPulseMode() {
+void enterCriticalPulseMode()
+{
     setI2CClock(I2C_FAST_CLOCK_HZ);
 }
 
-void exitCriticalPulseMode() {
+void exitCriticalPulseMode()
+{
     setI2CClock(I2C_NORMAL_CLOCK_HZ);
 }
 
@@ -64,11 +67,15 @@ void exitCriticalPulseMode() {
 *  We retry exactly INA226_INIT_RETRIES times with INA226_INIT_RETRY_MS between attempts,
 *  then reboot — the WDT will eventually recover the device if even reboot fails.
 *================================================================================================*/
-void initINA226() {
+void initINA226()
+{
     uint8_t retries = INA226_INIT_RETRIES;
     bool ok = false;
     while (retries-- > 0) {
-        if (INA.begin()) { ok = true; break; }
+        if (INA.begin()) {
+            ok = true;
+            break;
+        }
         delay(INA226_INIT_RETRY_MS);
     }
     if (!ok) {
@@ -85,16 +92,19 @@ void initINA226() {
 /*==================================================================================================
 *  Sensor readers
 *================================================================================================*/
-millivolts_t readBatteryVoltage() {
+millivolts_t readBatteryVoltage()
+{
     return INA.getBusVoltage_mV();
 }
 
-milliamps_t readBatteryCurrent() {
+milliamps_t readBatteryCurrent()
+{
     int32_t ma = INA.getCurrent_mA();
     return (ma < 0) ? static_cast<milliamps_t>(-ma) : static_cast<milliamps_t>(ma);
 }
 
-adc_t readHallSensorAvg(uint8_t samples) {
+adc_t readHallSensorAvg(uint8_t samples)
+{
     if (samples == 0) samples = 1;
     uint32_t sum = 0;
     for (uint8_t i = 0; i < samples; ++i) {
@@ -103,8 +113,9 @@ adc_t readHallSensorAvg(uint8_t samples) {
     return static_cast<adc_t>(sum / samples);
 }
 
-celsius_t readTemperatureCelsius(adc_t adc) {
-    if (adc >= pgm_read_word(&ntc_adc_table[0]))             return 0;
+celsius_t readTemperatureCelsius(adc_t adc)
+{
+    if (adc >= pgm_read_word(&ntc_adc_table[0])) return 0;
     if (adc <= pgm_read_word(&ntc_adc_table[NTC_TABLE_SIZE - 1])) return 100;
 
     for (uint8_t i = 0; i < NTC_TABLE_SIZE - 1; ++i) {
@@ -121,8 +132,9 @@ celsius_t readTemperatureCelsius(adc_t adc) {
 /*==================================================================================================
 *  Periodic background checks  (called from stateMachine every loop tick)
 *================================================================================================*/
-void checkForLowVoltageEvent() {
-    static unsigned long lastBVTime = 1;  // 1 ensures first-tick execution
+void checkForLowVoltageEvent()
+{
+    static unsigned long lastBVTime = 1; // 1 ensures first-tick execution
     if ((millis() - lastBVTime) < BATTERY_SAMPLE_MS) return;
     lastBVTime = millis();
 
@@ -155,7 +167,8 @@ void checkForLowVoltageEvent() {
     }
 }
 
-void checkTemp() {
+void checkTemp()
+{
     static unsigned long lastTTime = 0;
     if ((millis() - lastTTime) < TEMP_SAMPLE_MS) return;
     lastTTime = millis();
@@ -170,24 +183,26 @@ void checkTemp() {
     }
 }
 
-void checkForSleepEvent() {
+void checkForSleepEvent()
+{
     if ((atomicReadLastActiveTime() + STANDBY_TIMEOUT_MS) < millis()) {
         atomicSetEvent(Event::STBY_TIMEOUT);
     }
 }
 
-void checkForBtnEvent() {
-    static unsigned long lastBtnTime  = 0;
-    static bool          lastBtnState = BUTTON_UP;
+void checkForBtnEvent()
+{
+    static unsigned long lastBtnTime = 0;
+    static bool lastBtnState = BUTTON_UP;
     bool thisBtnState = btnState();
 
     if ((millis() - lastBtnTime) < RS_DEBOUNCE_MS) return;
-    if (thisBtnState == lastBtnState)               return;
+    if (thisBtnState == lastBtnState) return;
 
     atomicSetEvent(thisBtnState == BUTTON_UP ? Event::BTNUP : Event::BTNDN);
     unsigned long now = millis();
     atomicSetLastActiveTime(now);
-    lastBtnTime  = now;
+    lastBtnTime = now;
     lastBtnState = thisBtnState;
 }
 
@@ -211,8 +226,9 @@ void checkForBtnEvent() {
 *    9. Show the release-progress bar, increment weld count, mark activity time.
 *   10. Defensive: force PIN_PULSE LOW on exit and restore the normal I2C clock.
 *================================================================================================*/
-void sendWeldPulse(uint8_t sensePin, milliseconds_t delayEngage,
-                   milliseconds_t delayRelease, bool senseActiveLevel) {
+void sendWeldPulse(uint8_t sensePin, milliseconds_t delayEngage, milliseconds_t delayRelease,
+                   bool senseActiveLevel)
+{
     struct progress wait;
     bool activePinState = (senseActiveLevel == PULSE_ACTIVE_HIGH);
 
@@ -225,27 +241,35 @@ void sendWeldPulse(uint8_t sensePin, milliseconds_t delayEngage,
 
     // 2. Engage wait
     if (sensePin == PIN_AUTO_PULSE) {
-        wait.opt  = PGR_ON;
+        wait.opt = PGR_ON;
         wait.time = delayEngage;
         while (!drawProgress(&wait, false)) {
             wdt_reset();
             if (digitalRead(PIN_AUTO_PULSE) != activePinState) {
                 drawProgress(&wait, true);
-                return;  // User released before the engage delay elapsed — abort cleanly.
+                return; // User released before the engage delay elapsed — abort cleanly.
             }
         }
     } else {
         // Foot switch: chunked delay so the WDT can be reset every 50 ms.
         milliseconds_t remaining = delayEngage;
-        while (remaining >= 50) { wdt_reset(); delay(50); remaining -= 50; }
-        if (remaining > 0)      { wdt_reset(); delay(remaining); }
+        while (remaining >= 50) {
+            wdt_reset();
+            delay(50);
+            remaining -= 50;
+        }
+        if (remaining > 0) {
+            wdt_reset();
+            delay(remaining);
+        }
     }
 
     if (pData.pFlags.en_Sound) playBeep(1500, 100);
 
     // 3. Short pre-pulse (dual-pulse mode)
     if (pData.shortPulseTime > 0 && pData.pulseTime > 3) {
-        unsigned long shortPulseDelay = max(1UL, (static_cast<unsigned long>(pData.pulseTime) * pData.shortPulseTime) / 100);
+        unsigned long shortPulseDelay = max(
+                1UL, (static_cast<unsigned long>(pData.pulseTime) * pData.shortPulseTime) / 100);
         wdt_reset();
         weldPulse(PULSE_ON);
         delay(static_cast<unsigned long>(shortPulseDelay));
@@ -257,28 +281,35 @@ void sendWeldPulse(uint8_t sensePin, milliseconds_t delayEngage,
     // 4. Voltage-compensated main pulse duration (integer arithmetic, P = V²/R model).
     //    nominalVoltage is stored in EEPROM as units of 100 mV (e.g. 80 = 8.0 V).
     //    batteryVoltage is in mV. We scale both to centivolts (100 mV) for the ratio.
-    uint32_t vnom_cv = static_cast<uint32_t>(pData.nominalVoltage);            // centivolts
-    uint32_t vact_cv = (static_cast<uint32_t>(batteryVoltage) + 50) / 100;     // mV → centivolts, rounded
-    if (vact_cv < 10) vact_cv = (DEF_NOM_BATT_V / 100);                        // sanity floor (0.1 V)
+    uint32_t vnom_cv = static_cast<uint32_t>(pData.nominalVoltage); // centivolts
+    uint32_t vact_cv =
+            (static_cast<uint32_t>(batteryVoltage) + 50) / 100; // mV → centivolts, rounded
+    if (vact_cv < 10) vact_cv = (DEF_NOM_BATT_V / 100);         // sanity floor (0.1 V)
 
-    uint32_t vnom2   = vnom_cv * vnom_cv;
-    uint32_t vact2   = vact_cv * vact_cv;
+    uint32_t vnom2 = vnom_cv * vnom_cv;
+    uint32_t vact2 = vact_cv * vact_cv;
     uint32_t compTime32 = (static_cast<uint32_t>(pData.pulseTime) * vnom2) / vact2;
 
     // Clamp the compensation factor to [0.7, 1.4] × baseTime — prevents runaway when the
     // battery is unusually low (comp would over-extend) or unusually high (comp would under-fire).
-    milliseconds_t minTime = (static_cast<uint32_t>(pData.pulseTime) * PULSE_COMP_MIN_FACTOR_NUM + PULSE_COMP_MIN_FACTOR_DEN - 1)
-                              / PULSE_COMP_MIN_FACTOR_DEN;
-    milliseconds_t maxTime = (static_cast<uint32_t>(pData.pulseTime) * PULSE_COMP_MAX_FACTOR_NUM)
-                              / PULSE_COMP_MAX_FACTOR_DEN;
+    milliseconds_t minTime = (static_cast<uint32_t>(pData.pulseTime) * PULSE_COMP_MIN_FACTOR_NUM +
+                              PULSE_COMP_MIN_FACTOR_DEN - 1) /
+                             PULSE_COMP_MIN_FACTOR_DEN;
+    milliseconds_t maxTime = (static_cast<uint32_t>(pData.pulseTime) * PULSE_COMP_MAX_FACTOR_NUM) /
+                             PULSE_COMP_MAX_FACTOR_DEN;
     milliseconds_t compensatedPulseTime = static_cast<milliseconds_t>(compTime32);
     if (compensatedPulseTime < minTime) compensatedPulseTime = minTime;
     if (compensatedPulseTime > maxTime) compensatedPulseTime = maxTime;
 
 #ifdef _DEVELOPMENT_
-    Serial.print(F("Base="));     Serial.print(pData.pulseTime);
-    Serial.print(F("ms  Vbatt=")); Serial.print(batteryVoltage / 1000); Serial.print('.'); Serial.print((batteryVoltage % 1000) / 100);
-    Serial.print(F("V  Tcomp="));  Serial.print(compensatedPulseTime);
+    Serial.print(F("Base="));
+    Serial.print(pData.pulseTime);
+    Serial.print(F("ms  Vbatt="));
+    Serial.print(batteryVoltage / 1000);
+    Serial.print('.');
+    Serial.print((batteryVoltage % 1000) / 100);
+    Serial.print(F("V  Tcomp="));
+    Serial.print(compensatedPulseTime);
     Serial.println(F("ms"));
 #endif
 
@@ -290,7 +321,7 @@ void sendWeldPulse(uint8_t sensePin, milliseconds_t delayEngage,
 
     // 6. Fire the main pulse. Use micros() busy-wait — NOT delay() — so we can reset
     //    the WDT inside the loop and the pulse length is exact to ~4 µs.
-    uint32_t pulseStart_us    = micros();
+    uint32_t pulseStart_us = micros();
     uint32_t pulseDuration_us = static_cast<uint32_t>(compensatedPulseTime) * 1000UL;
 
     weldPulse(PULSE_ON);
@@ -306,16 +337,17 @@ void sendWeldPulse(uint8_t sensePin, milliseconds_t delayEngage,
     // 7. Read sensors AFTER pulse-off — the ADC was primed above so its settling is
     //    already accounted for; the conversion below takes ~112 µs but does not
     //    extend the pulse because the pulse already ended.
-    adc_t        pulseGauss      = readHallSensorAvg(ADC_OVERSAMPLE_COUNT);
+    adc_t pulseGauss = readHallSensorAvg(ADC_OVERSAMPLE_COUNT);
     millivolts_t busVoltageDuring = readBatteryVoltage();
 
     pData.PulseBatteryVoltage = busVoltageDuring;
     // Hall sensor delta → estimated weld current in mA×10. Named constants replace the
     // magic `* 10` from v4.0.x.
-    pData.PulseAmps = (pulseGauss > nominalGauss)
-                        ? static_cast<uint16_t>(static_cast<uint32_t>(pulseGauss - nominalGauss)
-                                                * HALL_SCALE_MA_X10_PER_ADC)
-                        : 0;
+    pData.PulseAmps =
+            (pulseGauss > nominalGauss)
+                    ? static_cast<uint16_t>(static_cast<uint32_t>(pulseGauss - nominalGauss) *
+                                            HALL_SCALE_MA_X10_PER_ADC)
+                    : 0;
 
     // 8. Wait for sensePin to release. Critical safety property: the MOSFET is held OFF
     //    on every iteration, so even if the user stands on the pedal indefinitely the
@@ -326,9 +358,11 @@ void sendWeldPulse(uint8_t sensePin, milliseconds_t delayEngage,
     }
 
     // 9. Release-progress bar + bookkeeping.
-    wait.opt  = PGR_OFF;
+    wait.opt = PGR_OFF;
     wait.time = delayRelease;
-    while (!drawProgress(&wait, false)) { wdt_reset(); }
+    while (!drawProgress(&wait, false)) {
+        wdt_reset();
+    }
 
     pData.weldCount++;
     atomicSetLastActiveTime(millis());

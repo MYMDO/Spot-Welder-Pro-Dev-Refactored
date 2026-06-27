@@ -54,22 +54,10 @@ AllowShortIfStatementsOnASingleLine: WithoutElse
 AllowShortLambdasOnASingleLine: All
 AllowShortLoopsOnASingleLine: false
 
-# Includes
-IncludeBlocks: Regroup
-IncludeCategories:
-  - regex: '^<avr/'
-    priority: 1
-  - regex: '^<Arduino\.h>'
-    priority: 2
-  - regex: '^<Adafruit'
-    priority: 3
-  - regex: '^<.*\.h>'
-    priority: 4
-  - regex: '^".*"'
-    priority: 5
-SortIncludes: true
+# Includes — keep simple, sort only
+SortIncludes: CaseInsensitive
 
 # Miscellaneous
-ReflowComments: false    # Keep our hand-formatted section banners intact
+ReflowComments: false
 SpacesBeforeTrailingComments: 1
 Standard: c++14
