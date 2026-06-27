@@ -1,0 +1,165 @@
+# Continuous Integration — verify every push and PR compiles cleanly.
+# -----------------------------------------------------------------------------------------
+# We use PlatformIO (not the Arduino IDE) because it has a clean CLI and pre-installs
+# all dependencies in an isolated container. Three environments are built:
+#   - nano_atmega328  (default, with _DEVELOPMENT_ + _LANG_EN_)
+#   - production       (no Serial debug — exercises the non-debug code paths)
+#   - testing          (with _TESTING_ — exercises the alarm-bypass path)
+#
+# If any of the three fail to compile, the workflow fails.
+
+name: CI
+
+on:
+  push:
+    branches: [main, refactor/professional-cleanup]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build (${{ matrix.env }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [nano_atmega328, production, testing]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Build firmware
+        run: pio run -e ${{ matrix.env }}
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.env }}
+          path: |
+            .pio/build/${{ matrix.env }}/firmware.hex
+            .pio/build/${{ matrix.env }}/firmware.elf
+          if-no-files-found: warn
+
+  syntax-check:
+    name: Syntax check (g++ with stubs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install g++
+        run: sudo apt-get update && sudo apt-get install -y g++
+      - name: Compile-test with stubs
+        run: |
+          mkdir -p syntax-check/arduino syntax-check/avr
+          cat > syntax-check/arduino/Arduino.h <<'EOF'
+          #pragma once
+          #include <cstdint>
+          #include <cstddef>
+          #include <cstdio>
+          #include <cstring>
+          #include <cstdarg>
+          #include <algorithm>
+          using std::max; using std::min;
+          #define HIGH 1
+          #define LOW 0
+          #define INPUT 0
+          #define OUTPUT 1
+          #define INPUT_PULLUP 2
+          #define FALLING 2
+          #define WHITE 1
+          #define BLACK 0
+          #define SSD1306_SWITCHCAPVCC 1
+          #define WDTO_15MS 0
+          #define WDTO_250MS 1
+          #define A0 14
+          #define A1 15
+          #define A3 17
+          #define A4 18
+          #define A5 19
+          #define HEX 16
+          #define DEC 10
+          typedef uint8_t byte;
+          typedef const char* PGM_P;
+          class __FlashStringHelper;
+          #define F(x) (reinterpret_cast<const __FlashStringHelper*>(x))
+          #ifndef FPSTR
+          #define FPSTR(x) (reinterpret_cast<const __FlashStringHelper*>(x))
+          #endif
+          #define PSTR(x) (x)
+          #define PROGMEM
+          inline uint16_t pgm_read_word(const uint16_t* p) { return *p; }
+          inline size_t strlen_P(PGM_P s) { return std::strlen(s); }
+          inline int sprintf_P(char* b, const char* f, ...) { va_list a; va_start(a,f); int r=std::vsnprintf(b,64,f,a); va_end(a); return r; }
+          void pinMode(uint8_t,uint8_t); void digitalWrite(uint8_t,uint8_t); int digitalRead(uint8_t); int analogRead(uint8_t);
+          void attachInterrupt(uint8_t,void(*)(),uint8_t); unsigned long millis(); unsigned long micros();
+          void delay(unsigned long); void tone(uint8_t,unsigned int,unsigned long); void noTone(uint8_t);
+          void cli(); void sei(); extern uint8_t SREG; uint8_t SREG=0; extern volatile uint8_t MCUSR_reg; volatile uint8_t MCUSR_reg=0; #define MCUSR MCUSR_reg
+          class Serial_ { public: void begin(unsigned long){} void print(const char*){} void print(int){} void print(int,int){} void print(unsigned int){} void print(unsigned int,int){} void print(unsigned long){} void print(unsigned long,int){} void print(long){} void print(long,int){} void print(char){} void print(const __FlashStringHelper*){} void println(){} void println(const char*){} void println(int){} void println(unsigned int){} void println(unsigned long){} void println(unsigned long,int){} void println(long){} void println(const __FlashStringHelper*){} };
+          extern Serial_ Serial;
+          namespace wdt_stub { inline void enable(uint8_t){} inline void disable(){} inline void reset(){} }
+          #define wdt_enable wdt_stub::enable
+          #define wdt_disable wdt_stub::disable
+          #define wdt_reset wdt_stub::reset
+          class TwoWire { public: void begin(){} void setClock(uint32_t){} void beginTransmission(uint8_t){} uint8_t endTransmission(){return 0;} };
+          extern TwoWire Wire;
+          class Adafruit_SSD1306 { public: Adafruit_SSD1306(int,int,TwoWire*,int,long){} bool begin(uint8_t,uint8_t){return true;} void clearDisplay(){} void display(){} void setTextColor(uint16_t){} void setTextColor(uint16_t,uint16_t){} void setCursor(int16_t,int16_t){} void setTextSize(uint8_t){} size_t print(const char*){return 0;} size_t print(const __FlashStringHelper*){return 0;} size_t print(int){return 0;} size_t print(unsigned int){return 0;} size_t print(unsigned long){return 0;} size_t print(long){return 0;} size_t print(char){return 0;} void drawLine(int16_t,int16_t,int16_t,int16_t,uint16_t){} void drawRect(int16_t,int16_t,int16_t,int16_t,uint16_t){} void fillRect(int16_t,int16_t,int16_t,int16_t,uint16_t){} void setRotation(uint8_t){} };
+          class EEPROMClass { public: template<typename T> void put(int,const T&){} template<typename T> void get(int,T&){} };
+          extern EEPROMClass EEPROM;
+          class INA226 { public: INA226(uint8_t){} bool begin(){return true;} void setMaxCurrentShunt(float,float){} void setAverage(uint8_t){} uint16_t getBusVoltage_mV(){return 8000;} int32_t getCurrent_mA(){return 0;} };
+          EOF
+          cat > syntax-check/avr/wdt.h <<'EOF'
+          #pragma once
+          #include "../arduino/Arduino.h"
+          EOF
+          cat > syntax-check/Adafruit_SSD1306.h <<'EOF'
+          #pragma once
+          #include "Arduino.h"
+          EOF
+          cat > syntax-check/EEPROM.h <<'EOF'
+          #pragma once
+          #include "Arduino.h"
+          EOF
+          cat > syntax-check/INA226.h <<'EOF'
+          #pragma once
+          #include "Arduino.h"
+          EOF
+          cat > syntax-check/check.cpp <<'EOF'
+          #include "arduino/Arduino.h"
+          #define _DEVELOPMENT_
+          #define _LANG_EN_
+          #include "../Spot-Welder-Pro/Spot-Welder-Pro.h"
+          #include "../Spot-Welder-Pro/Spot-Welder-Pro.ino"
+          #include "../Spot-Welder-Pro/a_state_machine.ino"
+          #include "../Spot-Welder-Pro/b_display.ino"
+          #include "../Spot-Welder-Pro/c_eeprom_sound.ino"
+          #include "../Spot-Welder-Pro/d_hardware.ino"
+          int main(){setup(); for(int i=0;i<10;i++) loop(); return 0;}
+          EOF
+          g++ -std=c++14 -fsyntax-only -Wall -Wextra -Isyntax-check -Isyntax-check/arduino syntax-check/check.cpp
+
+  lint:
+    name: Code style check (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Verify formatting
+        run: |
+          FILES=$(find . -maxdepth 1 \( -name '*.ino' -o -name '*.h' \))
+          for f in $FILES; do
+            if ! clang-format --dry-run --Werror "$f" > /dev/null 2>&1; then
+              echo "::error file=$f::Code style violations in $f"
+              clang-format "$f" | diff -u "$f" - || true
+              exit 1
+            fi
+          done

@@ -1,0 +1,16 @@
+# Build artifacts
+.pio/
+build/
+syntax-check/
+
+# IDE / editor
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

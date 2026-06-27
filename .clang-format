@@ -1,0 +1,75 @@
+# Editor configuration — see https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+# Apply with: clang-format -i *.ino *.h
+# -----------------------------------------------------------------------------------------
+# Style is tuned for Arduino IDE compatibility (which doesn't run clang-format) but matches
+# what most modern C++ developers expect: 4-space indent, 100-col limit, Attach braces.
+
+Language:        Cpp
+BasedOnStyle:    LLVM
+
+# Indentation
+IndentWidth:     4
+TabWidth:        4
+UseTab:          Never
+ContinuationIndentWidth: 8
+PPIndentWidth:   -1
+
+# Line length
+ColumnLimit:     100
+
+# Braces
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterEnum:       false
+  AfterClass:      true
+  AfterStruct:     true
+  AfterUnion:      true
+  AfterFunction:   true
+  AfterControlStatement: Never
+  BeforeElse:      false
+  BeforeCatch:     false
+  IndentBraces:    false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: true
+AlignEscapedNewlines: Left
+AlignOperands: true
+AlignTrailingComments: true
+
+# Pointers / references
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+
+# Short forms
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: false
+
+# Includes
+IncludeBlocks: Regroup
+IncludeCategories:
+  - regex: '^<avr/'
+    priority: 1
+  - regex: '^<Arduino\.h>'
+    priority: 2
+  - regex: '^<Adafruit'
+    priority: 3
+  - regex: '^<.*\.h>'
+    priority: 4
+  - regex: '^".*"'
+    priority: 5
+SortIncludes: true
+
+# Miscellaneous
+ReflowComments: false    # Keep our hand-formatted section banners intact
+SpacesBeforeTrailingComments: 1
+Standard: c++14
